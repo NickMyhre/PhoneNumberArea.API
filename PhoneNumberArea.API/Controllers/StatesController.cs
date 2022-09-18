@@ -2,10 +2,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using AutoMapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using PhoneNumberArea.API.Contracts;
 using PhoneNumberArea.API.Data;
+using PhoneNumberArea.API.Models.State;
 
 namespace PhoneNumberArea.API.Controllers
 {
@@ -13,53 +16,58 @@ namespace PhoneNumberArea.API.Controllers
     [ApiController]
     public class StatesController : ControllerBase
     {
-        private readonly PhoneNumberAreaDbContext _context;
+        private readonly IStatesRepository _statesRepository;
+        private readonly IMapper _mapper;
 
-        public StatesController(PhoneNumberAreaDbContext context)
+        public StatesController(IStatesRepository statesRepository, IMapper mapper)
         {
-            _context = context;
+            this._statesRepository = statesRepository;
+            this._mapper = mapper;
         }
 
         // GET: api/States
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<State>>> GetStates()
+        public async Task<ActionResult<List<StateDto>>> GetStates()
         {
-            return await _context.States.ToListAsync();
+            var states = await _statesRepository.GetAllAsync();
+            var result = _mapper.Map<List<StateDto>>(states);
+            return Ok(result);
         }
-
+        
         // GET: api/States/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<State>> GetState(int id)
+        public async Task<ActionResult<GetStateDto>> GetState(int id)
         {
-            var state = await _context.States.FindAsync(id);
+            var state = await _statesRepository.GetDetails(id);
 
             if (state == null)
             {
                 return NotFound();
             }
 
-            return state;
-        }
 
+            return _mapper.Map<GetStateDto>(state);
+        }
+        
         // PUT: api/States/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutState(int id, State state)
+        public async Task<IActionResult> PutState(int id, UpdateStateDto updateStateDto)
         {
-            if (id != state.Id)
+            if (id != updateStateDto.Id)
             {
                 return BadRequest();
             }
 
-            _context.Entry(state).State = EntityState.Modified;
+            var state = _mapper.Map<State>(updateStateDto);
 
             try
             {
-                await _context.SaveChangesAsync();
+                await _statesRepository.UpdateAsync(state);
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!StateExists(id))
+                if (!await _statesRepository.Exists(updateStateDto.Id))
                 {
                     return NotFound();
                 }
@@ -71,37 +79,32 @@ namespace PhoneNumberArea.API.Controllers
 
             return NoContent();
         }
-
+        
         // POST: api/States
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<State>> PostState(State state)
+        public async Task<ActionResult<StateDto>> PostState(CreateStateDto createStateDto)
         {
-            _context.States.Add(state);
-            await _context.SaveChangesAsync();
 
-            return CreatedAtAction("GetState", new { id = state.Id }, state);
+            var state = _mapper.Map<State>(createStateDto);
+            await _statesRepository.AddAsync(state);
+
+            return CreatedAtAction("GetState", new { id = state.Id }, _mapper.Map<StateDto>(state));
         }
-
+        
         // DELETE: api/States/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteState(int id)
         {
-            var state = await _context.States.FindAsync(id);
+            var state = await _statesRepository.GetAsync(id);
             if (state == null)
             {
                 return NotFound();
             }
 
-            _context.States.Remove(state);
-            await _context.SaveChangesAsync();
+            await _statesRepository.DeleteAsync(id);
 
             return NoContent();
-        }
-
-        private bool StateExists(int id)
-        {
-            return _context.States.Any(e => e.Id == id);
         }
     }
 }
