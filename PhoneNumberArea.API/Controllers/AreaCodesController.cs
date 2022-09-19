@@ -2,10 +2,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using AutoMapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using PhoneNumberArea.API.Contracts;
 using PhoneNumberArea.API.Data;
+using PhoneNumberArea.API.Models.AreaCode;
 
 namespace PhoneNumberArea.API.Controllers
 {
@@ -13,53 +16,62 @@ namespace PhoneNumberArea.API.Controllers
     [ApiController]
     public class AreaCodesController : ControllerBase
     {
-        private readonly PhoneNumberAreaDbContext _context;
+        private readonly IAreaCodesRepository _areaCodesRepository;
+        private readonly IMapper _mapper;
 
-        public AreaCodesController(PhoneNumberAreaDbContext context)
+        public AreaCodesController(IAreaCodesRepository areaCodesRepository, IMapper mapper)
         {
-            _context = context;
+            this._areaCodesRepository = areaCodesRepository;
+            this._mapper = mapper;
         }
 
         // GET: api/AreaCodes
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<AreaCode>>> GetAreaCodes()
+        public async Task<ActionResult<IEnumerable<AreaCodeDto>>> GetAreaCodes()
         {
-            return await _context.AreaCodes.ToListAsync();
+            var areaCodes = await _areaCodesRepository.GetAllAsync();
+            var areaCodeDtos = _mapper.Map<List<AreaCodeDto>>(areaCodes);
+
+            return Ok(areaCodeDtos);
         }
 
         // GET: api/AreaCodes/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<AreaCode>> GetAreaCode(int id)
+        public async Task<ActionResult<GetAreaCodeDto>> GetAreaCode(int id)
         {
-            var areaCode = await _context.AreaCodes.FindAsync(id);
+            var areaCode = await _areaCodesRepository.GetDetails(id);
 
             if (areaCode == null)
             {
                 return NotFound();
             }
 
-            return areaCode;
+            var areaCodeDto = _mapper.Map<GetAreaCodeDto>(areaCode);
+
+            return Ok(areaCodeDto);
         }
 
         // PUT: api/AreaCodes/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutAreaCode(int id, AreaCode areaCode)
+        public async Task<IActionResult> PutAreaCode(int id, UpdateAreaCodeDto updateAreaCodeDto)
         {
-            if (id != areaCode.Id)
+            if (id != updateAreaCodeDto.Id)
             {
                 return BadRequest();
             }
 
-            _context.Entry(areaCode).State = EntityState.Modified;
+            var areaCode = await _areaCodesRepository.GetAsync(id);
+
+            _mapper.Map(updateAreaCodeDto, areaCode);
 
             try
             {
-                await _context.SaveChangesAsync();
+                await _areaCodesRepository.UpdateAsync(areaCode);
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!AreaCodeExists(id))
+                if (!await _areaCodesRepository.Exists(id))
                 {
                     return NotFound();
                 }
@@ -75,10 +87,10 @@ namespace PhoneNumberArea.API.Controllers
         // POST: api/AreaCodes
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<AreaCode>> PostAreaCode(AreaCode areaCode)
+        public async Task<ActionResult<AreaCode>> PostAreaCode(CreateAreaCodeDto createAreaCodeDto)
         {
-            _context.AreaCodes.Add(areaCode);
-            await _context.SaveChangesAsync();
+            var areaCode = _mapper.Map<AreaCode>(createAreaCodeDto);
+            await _areaCodesRepository.AddAsync(areaCode);
 
             return CreatedAtAction("GetAreaCode", new { id = areaCode.Id }, areaCode);
         }
@@ -87,21 +99,15 @@ namespace PhoneNumberArea.API.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteAreaCode(int id)
         {
-            var areaCode = await _context.AreaCodes.FindAsync(id);
+            var areaCode = await _areaCodesRepository.GetAsync(id);
             if (areaCode == null)
             {
                 return NotFound();
             }
 
-            _context.AreaCodes.Remove(areaCode);
-            await _context.SaveChangesAsync();
+            await _areaCodesRepository.DeleteAsync(id);
 
             return NoContent();
-        }
-
-        private bool AreaCodeExists(int id)
-        {
-            return _context.AreaCodes.Any(e => e.Id == id);
         }
     }
 }

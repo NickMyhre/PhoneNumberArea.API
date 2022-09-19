@@ -45,8 +45,9 @@ namespace PhoneNumberArea.API.Controllers
                 return NotFound();
             }
 
+            var stateDto = _mapper.Map<GetStateDto>(state);
 
-            return _mapper.Map<GetStateDto>(state);
+            return Ok(stateDto);
         }
         
         // PUT: api/States/5
